@@ -1,9 +1,54 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { LayoutDashboard, ShoppingBag, Package, DollarSign, TrendingUp, Edit, Trash2, Shield, Printer, Plus, Clock, Truck, CheckCircle2, ShieldAlert, Globe, Copy, User, Mail, MessageSquare, ShoppingCart, RotateCcw, X, Download } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Calendar as CalendarIcon, LayoutDashboard, ShoppingBag, Package, DollarSign, TrendingUp, Edit, Trash2, Shield, Printer, Plus, Clock, Truck, CheckCircle2, ShieldAlert, Globe, Copy, User as UserIcon, Mail, MessageSquare, ShoppingCart, RotateCcw, X, Download, AlertTriangle } from 'lucide-react';
+import { motion, Reorder, useDragControls } from 'motion/react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { initAuth, googleSignIn, getAccessToken, logout as googleLogout } from '../lib/googleAuth';
+import type { User } from 'firebase/auth';
+import AdminCalendarView from '../components/AdminCalendarView';
+
+const DraggableGridItem: React.FC<{ id: string, children: React.ReactNode }> = ({ id, children }) => {
+  const controls = useDragControls();
+  const [isPressing, setIsPressing] = useState(false);
+  const pressTimeout = React.useRef<NodeJS.Timeout | null>(null);
+
+  const startPress = (e: React.PointerEvent) => {
+    if (e.button !== 0 && e.nativeEvent.pointerType === 'mouse') return;
+    
+    pressTimeout.current = setTimeout(() => {
+      setIsPressing(true);
+      controls.start(e);
+    }, 500); // 500ms long press to drag
+  };
+
+  const clearPress = () => {
+    if (pressTimeout.current) clearTimeout(pressTimeout.current);
+    setIsPressing(false);
+  };
+
+  return (
+    <Reorder.Item 
+      key={id} 
+      value={id} 
+      as="div" 
+      dragListener={false} 
+      dragControls={controls}
+      style={{ touchAction: 'pan-y' }}
+      className={`outline-none relative transition-transform ${isPressing ? 'z-50 scale-105' : 'z-auto scale-100'}`}
+      onPointerDown={startPress}
+      onPointerUp={clearPress}
+      onPointerCancel={clearPress}
+      onPointerLeave={clearPress}
+      onContextMenu={(e) => {
+        // Prevent default context menu on long press on mobile
+        if (e.nativeEvent.pointerType === 'touch') e.preventDefault();
+      }}
+    >
+      {children}
+    </Reorder.Item>
+  );
+}
 
 export default function AdminDashboard() {
   const { isAdmin, loginAdmin, logoutAdmin, products, setProducts, orders, setOrders, storeSettings, setStoreSettings } = useApp();
@@ -15,8 +60,12 @@ export default function AdminDashboard() {
 
   // Dashboard State
   const [activeTab, setActiveTab] = useState('overview');
+  const [orderFilter, setOrderFilter] = useState('All');
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [operationsOrder, setOperationsOrder] = useState([
+    'orders', 'products', 'create_order', 'access', 'settings', 'calendar'
+  ]);
   
   // Create Order State
   const [isCreateOrderModalOpen, setIsCreateOrderModalOpen] = useState(false);
@@ -28,6 +77,60 @@ export default function AdminDashboard() {
     total: '',
     itemsNote: ''
   });
+
+  // Google Calendar Auth State
+  const [needsAuth, setNeedsAuth] = useState(true);
+  const [googleUser, setGoogleUser] = useState<User | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchEvents = async (token: string) => {
+      try {
+        const timeMin = new Date().toISOString();
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&maxResults=10&singleEvents=true&orderBy=startTime`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        setCalendarEvents(data.items || []);
+      } catch (e) {
+        console.error('Failed to fetch calendar events', e);
+      }
+    };
+
+    const unsubscribe = initAuth(
+      (user, token) => {
+        setGoogleUser(user);
+        setNeedsAuth(false);
+        fetchEvents(token);
+      },
+      () => setNeedsAuth(true)
+    );
+    
+    return () => unsubscribe();
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    setIsLoggingIn(true);
+    try {
+      const result = await googleSignIn();
+      if (result) {
+        setGoogleUser(result.user);
+        setNeedsAuth(false);
+        // fetch events
+        const timeMin = new Date().toISOString();
+        const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&maxResults=10&singleEvents=true&orderBy=startTime`, {
+          headers: { Authorization: `Bearer ${result.accessToken}` }
+        });
+        const data = await res.json();
+        setCalendarEvents(data.items || []);
+      }
+    } catch (e) {
+      console.error('Google login failed', e);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
 
   const handleCreateOrder = (e: React.FormEvent) => {
     e.preventDefault();
@@ -272,7 +375,7 @@ export default function AdminDashboard() {
   const totalOrders = orders.length;
 
   return (
-    <div className="pt-24 pb-16 min-h-screen bg-brand-light flex flex-col md:flex-row relative">
+    <div className="pt-2 md:pt-4 pb-16 min-h-[calc(100vh-8rem)] bg-brand-light flex flex-col md:flex-row relative">
       
       {/* Admin Sidebar (Desktop only) */}
       <aside className="w-64 bg-brand-light border-r border-brand-border flex-shrink-0 hidden md:flex flex-col">
@@ -321,6 +424,14 @@ export default function AdminDashboard() {
                 <Globe size={18} className="mr-3" /> Settings
               </button>
             </li>
+            <li>
+              <button 
+                onClick={() => setActiveTab('calendar')}
+                className={`w-full flex items-center px-6 py-3 text-sm uppercase tracking-widest transition-colors ${activeTab === 'calendar' ? 'bg-blue-500/10 text-blue-500 border-l-2 border-blue-500' : 'text-brand-muted hover:text-brand-dark border-l-2 border-transparent'}`}
+              >
+                <Clock size={18} className="mr-3" /> Calendar
+              </button>
+            </li>
           </ul>
         </nav>
         <div className="p-6 border-t border-brand-border">
@@ -331,76 +442,100 @@ export default function AdminDashboard() {
       </aside>
 
       {/* Main Admin Content */}
-      <main className="flex-1 p-4 md:p-6 lg:p-10 overflow-y-auto pb-32 md:pb-10 min-w-0">
+      <main className="flex-1 p-2 pt-0 md:p-6 lg:p-10 overflow-y-auto pb-40 md:pb-10 min-w-0">
         
         {activeTab === 'overview' && (
-          <div className="space-y-8 animate-in fade-in">
-            <h2 className="font-serif text-3xl text-brand-dark">Dashboard Overview</h2>
+          <div className="space-y-6 md:space-y-8 animate-in fade-in max-w-5xl mx-auto mt-0 px-2">
+            <h2 className="font-serif text-2xl md:text-3xl text-brand-dark mb-6 text-center md:text-left">Admin Operations</h2>
             
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-brand-white border border-brand-border p-6 rounded-sm">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="text-brand-muted uppercase tracking-widest text-xs">Total Revenue</div>
-                  <div className="p-2 bg-gold-500/10 text-gold-500 rounded-full"><DollarSign size={18} /></div>
-                </div>
-                <div className="text-3xl font-serif text-brand-dark">৳{totalRevenue.toFixed(2)}</div>
-                <div className="text-green-400 text-xs mt-2 flex items-center"><TrendingUp size={12} className="mr-1" /> +12% from last month</div>
+            <Reorder.Group as="div" values={operationsOrder} onReorder={setOperationsOrder} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 md:gap-5 touch-pan-y">
+              {operationsOrder.map(id => {
+                if (id === 'orders') return (
+                  <DraggableGridItem key={id} id="orders">
+                    <button onClick={() => setActiveTab('orders')} className="w-full bg-[#f0f9ff] flex flex-col items-center justify-center h-28 md:h-32 rounded-[20px] shadow-sm border border-transparent hover:border-blue-200 hover:shadow-md transition-all group active:scale-95">
+                      <div className="w-10 h-10 md:w-12 md:h-12 rounded-[14px] bg-blue-500 text-white flex items-center justify-center mb-2 md:mb-3 shadow-sm shadow-blue-500/30 pointer-events-none">
+                        <ShoppingBag size={20} className="md:w-6 md:h-6" />
+                      </div>
+                      <span className="font-bold text-blue-900 text-[9px] sm:text-[10px] md:text-xs tracking-wider uppercase text-center px-1 leading-tight line-clamp-2 pointer-events-none">Orders</span>
+                    </button>
+                  </DraggableGridItem>
+                );
+                
+                if (id === 'products') return (
+                  <DraggableGridItem key={id} id="products">
+                    <button onClick={() => setActiveTab('products')} className="w-full bg-[#faf5ff] flex flex-col items-center justify-center h-28 md:h-32 rounded-[20px] shadow-sm border border-transparent hover:border-purple-200 hover:shadow-md transition-all group active:scale-95">
+                      <div className="w-10 h-10 md:w-12 md:h-12 rounded-[14px] bg-purple-500 text-white flex items-center justify-center mb-2 md:mb-3 shadow-sm shadow-purple-500/30 pointer-events-none">
+                        <Package size={20} className="md:w-6 md:h-6" />
+                      </div>
+                      <span className="font-bold text-purple-900 text-[9px] sm:text-[10px] md:text-xs tracking-wider uppercase text-center px-1 leading-tight line-clamp-2 pointer-events-none">Stock / Products</span>
+                    </button>
+                  </DraggableGridItem>
+                );
+                
+                if (id === 'calendar') return (
+                  <DraggableGridItem key={id} id="calendar">
+                    <button onClick={() => setActiveTab('calendar')} className="w-full bg-[#f0fdfa] flex flex-col items-center justify-center h-28 md:h-32 rounded-[20px] shadow-sm border border-transparent hover:border-teal-200 hover:shadow-md transition-all group active:scale-95">
+                      <div className="w-10 h-10 md:w-12 md:h-12 rounded-[14px] bg-teal-500 text-white flex items-center justify-center mb-2 md:mb-3 shadow-sm shadow-teal-500/30 pointer-events-none">
+                        <Clock size={20} className="md:w-6 md:h-6" />
+                      </div>
+                      <span className="font-bold text-teal-900 text-[9px] sm:text-[10px] md:text-xs tracking-wider uppercase text-center px-1 leading-tight line-clamp-2 pointer-events-none">Calendar</span>
+                    </button>
+                  </DraggableGridItem>
+                );
+                
+                if (id === 'access') return (
+                  <DraggableGridItem key={id} id="access">
+                    <button onClick={() => setActiveTab('access')} className="w-full bg-[#fff1f2] flex flex-col items-center justify-center h-28 md:h-32 rounded-[20px] shadow-sm border border-transparent hover:border-rose-200 hover:shadow-md transition-all group active:scale-95">
+                      <div className="w-10 h-10 md:w-12 md:h-12 rounded-[14px] bg-rose-500 text-white flex items-center justify-center mb-2 md:mb-3 shadow-sm shadow-rose-500/30 pointer-events-none">
+                        <Shield size={20} className="md:w-6 md:h-6" />
+                      </div>
+                      <span className="font-bold text-rose-900 text-[9px] sm:text-[10px] md:text-xs tracking-wider uppercase text-center px-1 leading-tight line-clamp-2 pointer-events-none">Users & Access</span>
+                    </button>
+                  </DraggableGridItem>
+                );
+                
+                if (id === 'create_order') return (
+                  <DraggableGridItem key={id} id="create_order">
+                    <button onClick={() => setIsCreateOrderModalOpen(true)} className="w-full bg-[#f0fdf4] flex flex-col items-center justify-center h-28 md:h-32 rounded-[20px] shadow-sm border border-transparent hover:border-green-200 hover:shadow-md transition-all group active:scale-95">
+                      <div className="w-10 h-10 md:w-12 md:h-12 rounded-[14px] bg-green-500 text-white flex items-center justify-center mb-2 md:mb-3 shadow-sm shadow-green-500/30 pointer-events-none">
+                        <Plus size={20} className="md:w-6 md:h-6" />
+                      </div>
+                      <span className="font-bold text-green-900 text-[9px] sm:text-[10px] md:text-xs tracking-wider uppercase text-center px-1 leading-tight line-clamp-2 pointer-events-none">Create Order</span>
+                    </button>
+                  </DraggableGridItem>
+                );
+                
+                if (id === 'settings') return (
+                  <DraggableGridItem key={id} id="settings">
+                    <button onClick={() => setActiveTab('settings')} className="w-full bg-[#f8fafc] flex flex-col items-center justify-center h-28 md:h-32 rounded-[20px] shadow-sm border border-transparent hover:border-slate-300 hover:shadow-md transition-all group active:scale-95">
+                      <div className="w-10 h-10 md:w-12 md:h-12 rounded-[14px] bg-slate-600 text-white flex items-center justify-center mb-2 md:mb-3 shadow-sm shadow-slate-600/30 pointer-events-none">
+                        <Globe size={20} className="md:w-6 md:h-6" />
+                      </div>
+                      <span className="font-bold text-slate-800 text-[9px] sm:text-[10px] md:text-xs tracking-wider uppercase text-center px-1 leading-tight line-clamp-2 pointer-events-none">Settings</span>
+                    </button>
+                  </DraggableGridItem>
+                );
+                
+                return null;
+              })}
+            </Reorder.Group>
+            
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-12">
+              <div className="bg-brand-white border border-brand-border p-5 rounded-2xl flex flex-col justify-center items-center">
+                <div className="text-brand-muted uppercase tracking-widest text-[10px] mb-2">Total Revenue</div>
+                <div className="text-xl font-serif text-brand-dark">৳{totalRevenue.toFixed(2)}</div>
               </div>
-              <div className="bg-brand-white border border-brand-border p-6 rounded-sm">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="text-brand-muted uppercase tracking-widest text-xs">Total Orders</div>
-                  <div className="p-2 bg-blue-500/10 text-blue-400 rounded-full"><ShoppingBag size={18} /></div>
-                </div>
-                <div className="text-3xl font-serif text-brand-dark">{totalOrders}</div>
-                <div className="text-brand-muted text-xs mt-2">Active processing</div>
+              <div className="bg-brand-white border border-brand-border p-5 rounded-2xl flex flex-col justify-center items-center">
+                <div className="text-brand-muted uppercase tracking-widest text-[10px] mb-2">Total Orders</div>
+                <div className="text-xl font-serif text-brand-dark">{totalOrders}</div>
               </div>
-              <div className="bg-brand-white border border-brand-border p-6 rounded-sm">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="text-brand-muted uppercase tracking-widest text-xs">Total Products</div>
-                  <div className="p-2 bg-purple-500/10 text-purple-400 rounded-full"><Package size={18} /></div>
-                </div>
-                <div className="text-3xl font-serif text-brand-dark">{products.length}</div>
-                <div className="text-brand-muted text-xs mt-2">In catalog</div>
+              <div className="bg-brand-white border border-brand-border p-5 rounded-2xl flex flex-col justify-center items-center">
+                <div className="text-brand-muted uppercase tracking-widest text-[10px] mb-2">Total Products</div>
+                <div className="text-xl font-serif text-brand-dark">{products.length}</div>
               </div>
-            </div>
-
-            {/* Recent Orders Snippet */}
-            <div className="bg-brand-white border border-brand-border rounded-sm overflow-hidden">
-              <div className="p-6 border-b border-brand-border flex justify-between items-center">
-                <h3 className="font-serif text-xl text-brand-dark">Recent Orders</h3>
-              </div>
-              <div className="overflow-x-auto pb-4 max-w-full">
-                <table className="w-full text-left text-sm text-brand-dark min-w-[700px] whitespace-nowrap">
-                  <thead className="text-xs text-brand-muted uppercase tracking-widest bg-brand-light border-b border-brand-border">
-                    <tr>
-                      <th className="px-6 py-4 font-normal">Order ID</th>
-                      <th className="px-6 py-4 font-normal">Customer</th>
-                      <th className="px-6 py-4 font-normal">Date</th>
-                      <th className="px-6 py-4 font-normal">Status</th>
-                      <th className="px-6 py-4 font-normal text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.slice(0, 5).map(order => (
-                      <tr key={order.id} className="border-b border-brand-border hover:bg-brand-gray transition-colors">
-                        <td className="px-6 py-4 font-medium">{order.id}</td>
-                        <td className="px-6 py-4">{order.customer}</td>
-                        <td className="px-6 py-4">{order.date}</td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2 py-1 text-xs rounded-sm ${
-                            order.status === 'Delivered' ? 'bg-green-500/10 text-green-400' :
-                            order.status === 'Pending' ? 'bg-yellow-500/10 text-yellow-400' :
-                            'bg-gold-500/10 text-gold-500'
-                          }`}>
-                            {order.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">৳{order.total.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="bg-brand-white border border-brand-border p-5 rounded-2xl flex flex-col justify-center items-center">
+                <div className="text-brand-muted uppercase tracking-widest text-[10px] mb-2">Pending Orders</div>
+                <div className="text-xl font-serif text-brand-dark">{orders.filter(o => o.status === 'Pending').length}</div>
               </div>
             </div>
           </div>
@@ -421,82 +556,128 @@ export default function AdminDashboard() {
             </div>
 
             {/* Top Buttons */}
-            <div className="grid grid-cols-2 gap-4 mb-8">
-              <button onClick={handleDownloadAllConfirmedOrders} className="bg-[#0A996F] text-white rounded-[24px] py-10 px-4 flex flex-col items-center justify-center gap-3 font-bold text-[10px] md:text-sm uppercase tracking-widest hover:bg-[#087a58] transition-colors shadow-sm">
-                <Printer size={20} /> <span className="text-center leading-relaxed">Batch Print<br/>Confirmed</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+              <button onClick={handleDownloadAllConfirmedOrders} className="bg-gradient-to-br from-[#0bd49c] to-[#0A996F] text-white rounded-[16px] p-4 sm:p-5 flex items-center justify-between font-bold text-[10px] md:text-xs uppercase tracking-widest shadow-md hover:shadow-lg transition-all active:scale-[0.98] group relative overflow-hidden">
+                <div className="absolute -right-4 -top-8 text-white/10 group-hover:rotate-12 transition-transform duration-500">
+                  <Printer size={80} />
+                </div>
+                <div className="text-left relative z-10">
+                  <span className="block opacity-80 mb-0.5 text-[8px] sm:text-[9px]">ACTION</span>
+                  <span className="leading-tight text-sm sm:text-base">Batch Print<br/>Confirmed</span>
+                </div>
+                <div className="bg-white/20 p-3 rounded-full group-hover:scale-110 transition-transform relative z-10 shrink-0">
+                  <Printer size={18} />
+                </div>
               </button>
-              <button onClick={() => setIsCreateOrderModalOpen(true)} className="bg-[#1A56FF] text-white rounded-[24px] py-10 px-4 flex flex-col items-center justify-center gap-3 font-bold text-[10px] md:text-sm uppercase tracking-widest hover:bg-[#1546cc] transition-colors shadow-sm">
-                <Plus size={20} /> <span className="text-center leading-relaxed">Create<br/>New Order</span>
+              
+              <button onClick={() => setIsCreateOrderModalOpen(true)} className="bg-gradient-to-br from-[#4e7dff] to-[#1A56FF] text-white rounded-[16px] p-4 sm:p-5 flex items-center justify-between font-bold text-[10px] md:text-xs uppercase tracking-widest shadow-md hover:shadow-lg transition-all active:scale-[0.98] group relative overflow-hidden">
+                <div className="absolute -right-4 -top-8 text-white/10 group-hover:rotate-12 transition-transform duration-500">
+                  <Plus size={80} />
+                </div>
+                <div className="text-left relative z-10">
+                  <span className="block opacity-80 mb-0.5 text-[8px] sm:text-[9px]">CREATE</span>
+                  <span className="leading-tight text-sm sm:text-base">New Order<br/>Manually</span>
+                </div>
+                <div className="bg-white/20 p-3 rounded-full group-hover:scale-110 transition-transform relative z-10 shrink-0">
+                  <Plus size={18} />
+                </div>
               </button>
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
               {/* Active */}
-              <div className="bg-[#0f172a] rounded-[24px] p-4 md:p-5 flex flex-col justify-between shadow-sm min-h-[110px]">
-                <div className="bg-[#1e293b] p-2.5 rounded-xl text-white w-fit">
-                  <Package size={20} />
+              <div 
+                onClick={() => setOrderFilter(orderFilter === 'Active' ? 'All' : 'Active')}
+                className={`bg-gradient-to-br from-slate-800 to-slate-900 rounded-[16px] p-3 shadow-md flex items-center gap-3 cursor-pointer transition-all ${orderFilter === 'Active' ? 'ring-2 ring-slate-400 ring-offset-2 scale-[1.02]' : 'hover:scale-[1.02]'}`}
+              >
+                <div className="bg-slate-700/50 p-2.5 rounded-full text-white shrink-0">
+                  <Package size={16} />
                 </div>
-                <div className="mt-2">
-                  <div className="text-gray-400 font-bold text-[10px] sm:text-xs tracking-widest uppercase mb-1">Active</div>
-                  <div className="text-white font-bold text-2xl md:text-3xl leading-none">{orders.filter(o => o.status !== 'Delivered' && o.status !== 'Cancelled' && o.status !== 'Returned').length}</div>
+                <div>
+                  <div className="text-slate-400 font-bold text-[9px] tracking-widest uppercase mb-0.5">Active</div>
+                  <div className="text-white font-bold text-xl leading-none">{orders.filter(o => o.status !== 'Delivered' && o.status !== 'Cancelled' && o.status !== 'Returned').length}</div>
                 </div>
               </div>
+              
               {/* Pending */}
-              <div className="bg-white rounded-[24px] p-4 md:p-5 flex flex-col justify-between shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 min-h-[110px]">
-                <div className="bg-orange-50 p-2.5 rounded-xl text-orange-500 w-fit">
-                  <Clock size={20} />
+              <div 
+                onClick={() => setOrderFilter(orderFilter === 'Pending' ? 'All' : 'Pending')}
+                className={`bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-[16px] p-3 shadow-sm border border-orange-100 flex items-center gap-3 cursor-pointer transition-all ${orderFilter === 'Pending' ? 'ring-2 ring-orange-400 ring-offset-1 scale-[1.02]' : 'hover:scale-[1.02]'}`}
+              >
+                <div className="bg-orange-500/10 p-2.5 rounded-full text-orange-600 shrink-0">
+                  <Clock size={16} />
                 </div>
-                <div className="mt-2">
-                  <div className="text-gray-400 font-bold text-[10px] sm:text-xs tracking-widest uppercase mb-1">Pending</div>
-                  <div className="text-[#0a1a2f] font-bold text-2xl md:text-3xl leading-none">{orders.filter(o => o.status === 'Pending').length}</div>
+                <div>
+                  <div className="text-orange-900/60 font-bold text-[9px] tracking-widest uppercase mb-0.5">Pending</div>
+                  <div className="text-orange-900 font-bold text-xl leading-none">{orders.filter(o => o.status === 'Pending').length}</div>
                 </div>
               </div>
+              
               {/* Process */}
-              <div className="bg-white rounded-[24px] p-4 md:p-5 flex flex-col justify-between shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 min-h-[110px]">
-                <div className="bg-blue-50 p-2.5 rounded-xl text-[#1A56FF] w-fit">
-                  <ShoppingCart size={20} />
+              <div 
+                onClick={() => setOrderFilter(orderFilter === 'Process' ? 'All' : 'Process')}
+                className={`bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-[16px] p-3 shadow-sm border border-blue-100 flex items-center gap-3 cursor-pointer transition-all ${orderFilter === 'Process' ? 'ring-2 ring-blue-400 ring-offset-1 scale-[1.02]' : 'hover:scale-[1.02]'}`}
+              >
+                <div className="bg-blue-500/10 p-2.5 rounded-full text-[#1A56FF] shrink-0">
+                  <ShoppingCart size={16} />
                 </div>
-                <div className="mt-2">
-                  <div className="text-gray-400 font-bold text-[10px] sm:text-xs tracking-widest uppercase mb-1">Process</div>
-                  <div className="text-[#0a1a2f] font-bold text-2xl md:text-3xl leading-none">{orders.filter(o => o.status === 'Process').length}</div>
+                <div>
+                  <div className="text-blue-900/60 font-bold text-[9px] tracking-widest uppercase mb-0.5">Process</div>
+                  <div className="text-[#1A56FF] font-bold text-xl leading-none">{orders.filter(o => o.status === 'Process').length}</div>
                 </div>
               </div>
+              
               {/* Shipped */}
-              <div className="bg-white rounded-[24px] p-4 md:p-5 flex flex-col justify-between shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 min-h-[110px]">
-                <div className="bg-indigo-50 p-2.5 rounded-xl text-indigo-500 w-fit">
-                  <Truck size={20} />
+              <div 
+                onClick={() => setOrderFilter(orderFilter === 'Shipped' ? 'All' : 'Shipped')}
+                className={`bg-gradient-to-br from-indigo-50 to-indigo-100/50 rounded-[16px] p-3 shadow-sm border border-indigo-100 flex items-center gap-3 cursor-pointer transition-all ${orderFilter === 'Shipped' ? 'ring-2 ring-indigo-400 ring-offset-1 scale-[1.02]' : 'hover:scale-[1.02]'}`}
+              >
+                <div className="bg-indigo-500/10 p-2.5 rounded-full text-indigo-600 shrink-0">
+                  <Truck size={16} />
                 </div>
-                <div className="mt-2">
-                  <div className="text-gray-400 font-bold text-[10px] sm:text-xs tracking-widest uppercase mb-1">Shipped</div>
-                  <div className="text-[#0a1a2f] font-bold text-2xl md:text-3xl leading-none">{orders.filter(o => o.status === 'Shipped').length}</div>
+                <div>
+                  <div className="text-indigo-900/60 font-bold text-[9px] tracking-widest uppercase mb-0.5">Shipped</div>
+                  <div className="text-indigo-700 font-bold text-xl leading-none">{orders.filter(o => o.status === 'Shipped').length}</div>
                 </div>
               </div>
+              
               {/* Delivered */}
-              <div className="bg-white rounded-[24px] p-4 md:p-5 flex flex-col justify-between shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-gray-100 min-h-[110px]">
-                <div className="bg-green-50 p-2.5 rounded-xl text-[#0A996F] w-fit">
-                  <CheckCircle2 size={20} />
+              <div 
+                onClick={() => setOrderFilter(orderFilter === 'Delivered' ? 'All' : 'Delivered')}
+                className={`bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-[16px] p-3 shadow-sm border border-emerald-100 flex items-center gap-3 cursor-pointer transition-all ${orderFilter === 'Delivered' ? 'ring-2 ring-emerald-400 ring-offset-1 scale-[1.02]' : 'hover:scale-[1.02]'}`}
+              >
+                <div className="bg-emerald-500/10 p-2.5 rounded-full text-[#0A996F] shrink-0">
+                  <CheckCircle2 size={16} />
                 </div>
-                <div className="mt-2">
-                  <div className="text-gray-400 font-bold text-[10px] sm:text-xs tracking-widest uppercase mb-1">Delivered</div>
-                  <div className="text-[#0a1a2f] font-bold text-2xl md:text-3xl leading-none">{orders.filter(o => o.status === 'Delivered').length}</div>
+                <div>
+                  <div className="text-emerald-900/60 font-bold text-[9px] tracking-widest uppercase mb-0.5">Delivered</div>
+                  <div className="text-[#0A996F] font-bold text-xl leading-none">{orders.filter(o => o.status === 'Delivered').length}</div>
                 </div>
               </div>
+              
               {/* Returned */}
-              <div className="bg-[#fff5f5] rounded-[24px] p-4 md:p-5 flex flex-col justify-between border border-red-100 min-h-[110px]">
-                <div className="bg-red-50 p-2.5 rounded-xl text-red-500 w-fit">
-                  <RotateCcw size={20} />
+              <div 
+                onClick={() => setOrderFilter(orderFilter === 'Returned' ? 'All' : 'Returned')}
+                className={`bg-gradient-to-br from-rose-50 to-rose-100/50 rounded-[16px] p-3 shadow-sm border border-rose-100 flex items-center gap-3 cursor-pointer transition-all ${orderFilter === 'Returned' ? 'ring-2 ring-rose-400 ring-offset-1 scale-[1.02]' : 'hover:scale-[1.02]'}`}
+              >
+                <div className="bg-rose-500/10 p-2.5 rounded-full text-rose-600 shrink-0">
+                  <RotateCcw size={16} />
                 </div>
-                <div className="mt-2">
-                  <div className="text-red-400 font-bold text-[10px] sm:text-xs tracking-widest uppercase mb-1">Returned</div>
-                  <div className="text-red-600 font-bold text-2xl md:text-3xl leading-none">{orders.filter(o => o.status === 'Returned').length}</div>
+                <div>
+                  <div className="text-rose-900/60 font-bold text-[9px] tracking-widest uppercase mb-0.5">Returned</div>
+                  <div className="text-rose-600 font-bold text-xl leading-none">{orders.filter(o => o.status === 'Returned').length}</div>
                 </div>
               </div>
             </div>
 
             {/* Orders List */}
             <div className="space-y-6">
-              {orders.map(order => (
+              {orders.filter(o => {
+                if (orderFilter === 'All') return true;
+                if (orderFilter === 'Active') return o.status !== 'Delivered' && o.status !== 'Cancelled' && o.status !== 'Returned';
+                return o.status === orderFilter;
+              }).map(order => (
                 <div key={order.id} className="bg-white border border-brand-border rounded-[24px] p-5 md:p-6 shadow-sm">
                   {/* Top Row */}
                   <div className="flex justify-between items-start mb-4">
@@ -520,7 +701,16 @@ export default function AdminDashboard() {
                   </div>
 
                   {/* Customer Details */}
-                  <div className="bg-[#f8fafa] rounded-2xl p-4 md:p-5 relative mt-4">
+                  <div className={`bg-[#f8fafa] rounded-2xl p-4 md:p-5 relative mt-4 ${
+                    orders.some(o => o.phone === order.phone && o.status === 'Returned' && o.id !== order.id) 
+                      ? 'border-2 border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.15)]' 
+                      : ''
+                  }`}>
+                    {orders.some(o => o.phone === order.phone && o.status === 'Returned' && o.id !== order.id) && (
+                      <div className="absolute -top-3 left-4 bg-rose-500 text-white text-[9px] font-bold uppercase tracking-widest px-3 py-1 rounded-full flex items-center gap-1 shadow-sm z-10 animate-pulse">
+                        <AlertTriangle size={12} /> PREVIOUSLY RETURNED
+                      </div>
+                    )}
                     <button 
                       onClick={() => {
                         const text = `Order ID: #${order.id}\nCustomer: ${order.customer}\nPhone: ${order.phone}\nAddress: ${order.address}, ${order.city}\nTotal: ৳${order.total.toFixed(2)}`;
@@ -532,7 +722,7 @@ export default function AdminDashboard() {
                       <Copy size={14} />
                     </button>
                     <div className="flex items-start gap-3 mb-3 pr-10">
-                      <User size={16} className="text-gray-400 mt-0.5 shrink-0" />
+                      <UserIcon size={16} className="text-gray-400 mt-0.5 shrink-0" />
                       <div className="font-bold text-sm uppercase italic text-[#0a1a2f] tracking-wide">{order.customer}</div>
                     </div>
                     <div className="flex items-start gap-3">
@@ -722,8 +912,9 @@ export default function AdminDashboard() {
               </button>
             </div>
             
-            <div className="bg-brand-white border border-brand-border rounded-sm overflow-hidden">
-              <div className="overflow-x-auto pb-4 max-w-full">
+            <div className="bg-brand-white border border-brand-border rounded-sm overflow-hidden mb-4">
+              <div className="overflow-x-auto hidden md:block pb-4 max-w-full">
+                {/* Desktop Table */}
                 <table className="w-full text-left text-sm text-brand-dark min-w-[700px] whitespace-nowrap">
                   <thead className="text-xs text-brand-muted uppercase tracking-widest bg-brand-light border-b border-brand-border">
                     <tr>
@@ -754,6 +945,37 @@ export default function AdminDashboard() {
                     </tr>
                   </tbody>
                 </table>
+              </div>
+                
+              {/* Mobile Cards */}
+              <div className="md:hidden flex flex-col pt-3 pb-4 space-y-3 px-3">
+                <div className="bg-white border text-sm border-gray-100 rounded-[16px] p-4 shadow-sm flex flex-col space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-medium text-brand-dark text-base">Super Admin</div>
+                      <div className="text-brand-muted text-xs mt-1">rawda.20</div>
+                    </div>
+                    <span className="px-2.5 py-1 text-[10px] uppercase font-bold tracking-widest rounded-md bg-purple-500/10 text-purple-600">Superadmin</span>
+                  </div>
+                  <div className="flex justify-end pt-3 border-t border-gray-50">
+                    <span className="text-[11px] uppercase tracking-widest font-semibold text-brand-muted">Cannot remove</span>
+                  </div>
+                </div>
+                
+                <div className="bg-white border text-sm border-gray-100 rounded-[16px] p-4 shadow-sm flex flex-col space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-medium text-brand-dark text-base">Store Manager</div>
+                      <div className="text-brand-muted text-xs mt-1">manager@rawda.com</div>
+                    </div>
+                    <span className="px-2.5 py-1 text-[10px] uppercase font-bold tracking-widest rounded-md bg-blue-500/10 text-blue-600">Admin</span>
+                  </div>
+                  <div className="flex justify-end pt-3 border-t border-gray-50">
+                    <button className="flex items-center text-red-500 bg-red-50 px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-widest font-bold hover:bg-red-100 transition-colors">
+                      <Trash2 size={12} className="mr-1.5" /> Remove
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1057,6 +1279,98 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {activeTab === 'calendar' && (
+          <div className="space-y-6 animate-in fade-in max-w-4xl mx-auto">
+            <h2 className="font-serif text-3xl text-brand-dark mb-4">Google Calendar Integration</h2>
+            
+            <div className="bg-brand-white border border-brand-border p-6 rounded-2xl shadow-sm">
+              {needsAuth ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center mb-6">
+                    <CalendarIcon size={32} />
+                  </div>
+                  <h3 className="font-serif text-2xl text-brand-dark mb-3">Connect your Calendar</h3>
+                  <p className="text-brand-muted mb-8 max-w-md">Connect your Google account to automatically manage scheduling and appointments straight from your admin dashboard.</p>
+                  
+                  <button onClick={handleGoogleLogin} disabled={isLoggingIn} className="gsi-material-button bg-white border border-gray-300 rounded shadow-sm hover:shadow-md transition-all px-4 py-3 flex items-center justify-center gap-3 w-full max-w-xs cursor-pointer">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google Logo" className="w-6 h-6" />
+                    <span className="font-medium text-gray-700">{isLoggingIn ? 'Connecting...' : 'Sign in with Google'}</span>
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 pb-6 border-b border-gray-100">
+                    <div className="flex items-center gap-4">
+                      {googleUser?.photoURL ? (
+                        <img src={googleUser.photoURL} alt="Profile" className="w-12 h-12 rounded-full border border-gray-200" />
+                      ) : (
+                        <div className="w-12 h-12 bg-gold-500 text-white rounded-full flex items-center justify-center text-xl font-serif">
+                          {googleUser?.displayName?.charAt(0) || <UserIcon size={20} />}
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="font-bold text-brand-dark">{googleUser?.displayName}</h3>
+                        <p className="text-sm text-brand-muted">{googleUser?.email}</p>
+                      </div>
+                    </div>
+                    <button onClick={googleLogout} className="px-4 py-2 text-sm text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition-colors font-medium">
+                      Disconnect
+                    </button>
+                  </div>
+                  
+                  <h4 className="font-serif text-xl text-brand-dark mb-4 flex items-center gap-2">
+                    <CalendarIcon className="text-gold-500" size={20} /> Upcoming Events
+                  </h4>
+                  
+                  {calendarEvents.length === 0 ? (
+                    <div className="text-center py-10 bg-gray-50 rounded-xl border border-gray-100">
+                      <p className="text-brand-muted">No upcoming events found.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {calendarEvents.map((event: any) => (
+                        <div key={event.id} className="p-4 border border-brand-border rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-gold-500/30 transition-colors">
+                          <div>
+                            <h5 className="font-bold text-brand-dark">{event.summary || 'Untitled Event'}</h5>
+                            <p className="text-sm text-brand-muted mt-1 max-w-lg truncate">{event.description || 'No description'}</p>
+                          </div>
+                          <div className="flex-shrink-0 text-right md:text-left text-sm bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
+                            <div className="font-medium text-brand-dark">
+                              {event.start?.dateTime ? new Date(event.start.dateTime).toLocaleString() : 'All day'}
+                            </div>
+                            {event.location && (
+                              <div className="text-brand-muted mt-0.5 text-xs flex items-center justify-end md:justify-start gap-1">
+                                <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                                {event.location}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'calendar' && (
+          <div className="space-y-6 animate-in fade-in max-w-6xl mx-auto">
+            <div className="mb-4">
+              <div className="flex items-center gap-4 mb-2">
+                <CalendarIcon className="text-blue-500" size={36} />
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold italic tracking-tight uppercase leading-none text-[#0A1A2F]">Events<br/>Schedule</h1>
+                </div>
+              </div>
+              <p className="text-brand-muted font-bold text-[10px] tracking-widest uppercase ml-[52px]">Manage your Google Calendar workspace</p>
+            </div>
+            
+            <AdminCalendarView />
+          </div>
+        )}
+        
         {activeTab === 'settings' && (
           <div className="space-y-6 animate-in fade-in">
             <h2 className="font-serif text-3xl text-brand-dark mb-4">Store Settings</h2>
@@ -1173,6 +1487,16 @@ export default function AdminDashboard() {
                     />
                     <p className="text-xs text-gray-500">Enable floating WhatsApp button by providing the 11-digit local mobile number (e.g., 01700000000).</p>
                   </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-bold uppercase tracking-widest text-brand-muted">Contact Email</label>
+                    <input 
+                      type="email" 
+                      value={storeSettings.emailAddress}
+                      onChange={(e) => setStoreSettings({...storeSettings, emailAddress: e.target.value})}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-[#0A996F] focus:ring-1 focus:ring-[#0A996F] outline-none"
+                      placeholder="e.g. rawdafragrance@gmail.com"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1183,41 +1507,41 @@ export default function AdminDashboard() {
       </main>
 
       {/* Mobile Bottom Navigation (Visible only on mobile) */}
-      <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-white rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 flex items-center justify-between px-1.5 py-1.5 z-50 overflow-x-auto hide-scrollbar gap-1">
+      <nav className="md:hidden fixed bottom-4 left-4 right-4 bg-white/90 backdrop-blur-md rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 flex items-center justify-between px-2 py-2 z-[40] overflow-x-auto hide-scrollbar gap-1">
         <button 
           onClick={() => setActiveTab('overview')}
-          className={`flex-1 flex flex-col items-center justify-center min-w-[56px] h-14 rounded-[18px] transition-colors ${activeTab === 'overview' ? 'bg-[#0A996F] text-white' : 'text-gray-400 hover:bg-gray-50'}`}
+          className={`flex-1 flex flex-col items-center justify-center min-w-[60px] h-[60px] rounded-[18px] transition-all duration-300 ${activeTab === 'overview' ? 'bg-amber-50 shadow-sm' : 'hover:bg-gray-50'}`}
         >
-          <LayoutDashboard size={20} className="mb-1" />
-          <span className="text-[8px] sm:text-[9px] uppercase tracking-widest font-bold">Control</span>
+          <LayoutDashboard size={22} className={`mb-1 transition-transform duration-300 ${activeTab === 'overview' ? 'scale-110 text-amber-500' : 'text-amber-400 opacity-60'}`} />
+          <span className={`text-[9px] uppercase tracking-widest font-bold transition-colors ${activeTab === 'overview' ? 'text-amber-600' : 'text-amber-500 opacity-60'}`}>Menu</span>
         </button>
         <button 
           onClick={() => setActiveTab('orders')}
-          className={`flex-1 flex flex-col items-center justify-center min-w-[56px] h-14 rounded-[18px] transition-colors ${activeTab === 'orders' ? 'bg-[#0A996F] text-white' : 'text-gray-400 hover:bg-gray-50'}`}
+          className={`flex-1 flex flex-col items-center justify-center min-w-[60px] h-[60px] rounded-[18px] transition-all duration-300 ${activeTab === 'orders' ? 'bg-blue-50 shadow-sm' : 'hover:bg-gray-50'}`}
         >
-          <ShoppingCart size={20} className="mb-1" />
-          <span className="text-[8px] sm:text-[9px] uppercase tracking-widest font-bold">Orders</span>
+          <ShoppingCart size={22} className={`mb-1 transition-transform duration-300 ${activeTab === 'orders' ? 'scale-110 text-blue-500' : 'text-blue-400 opacity-60'}`} />
+          <span className={`text-[9px] uppercase tracking-widest font-bold transition-colors ${activeTab === 'orders' ? 'text-blue-600' : 'text-blue-500 opacity-60'}`}>Orders</span>
         </button>
         <button 
           onClick={() => setActiveTab('products')}
-          className={`flex-1 flex flex-col items-center justify-center min-w-[56px] h-14 rounded-[18px] transition-colors ${activeTab === 'products' ? 'bg-[#0A996F] text-white' : 'text-gray-400 hover:bg-gray-50'}`}
+          className={`flex-1 flex flex-col items-center justify-center min-w-[60px] h-[60px] rounded-[18px] transition-all duration-300 ${activeTab === 'products' ? 'bg-purple-50 shadow-sm' : 'hover:bg-gray-50'}`}
         >
-          <Package size={20} className="mb-1" />
-          <span className="text-[8px] sm:text-[9px] uppercase tracking-widest font-bold">Stock</span>
+          <Package size={22} className={`mb-1 transition-transform duration-300 ${activeTab === 'products' ? 'scale-110 text-purple-500' : 'text-purple-400 opacity-60'}`} />
+          <span className={`text-[9px] uppercase tracking-widest font-bold transition-colors ${activeTab === 'products' ? 'text-purple-600' : 'text-purple-500 opacity-60'}`}>Stock</span>
         </button>
         <button 
           onClick={() => setActiveTab('access')}
-          className={`flex-1 flex flex-col items-center justify-center min-w-[56px] h-14 rounded-[18px] transition-colors ${activeTab === 'access' ? 'bg-[#0A996F] text-white' : 'text-gray-400 hover:bg-gray-50'}`}
+          className={`flex-1 flex flex-col items-center justify-center min-w-[60px] h-[60px] rounded-[18px] transition-all duration-300 ${activeTab === 'access' ? 'bg-rose-50 shadow-sm' : 'hover:bg-gray-50'}`}
         >
-          <User size={20} className="mb-1" />
-          <span className="text-[8px] sm:text-[9px] uppercase tracking-widest font-bold">Users</span>
+          <UserIcon size={22} className={`mb-1 transition-transform duration-300 ${activeTab === 'access' ? 'scale-110 text-rose-500' : 'text-rose-400 opacity-60'}`} />
+          <span className={`text-[9px] uppercase tracking-widest font-bold transition-colors ${activeTab === 'access' ? 'text-rose-600' : 'text-rose-500 opacity-60'}`}>Users</span>
         </button>
         <button 
           onClick={() => setActiveTab('settings')}
-          className={`flex-1 flex flex-col items-center justify-center min-w-[56px] h-14 rounded-[18px] transition-colors ${activeTab === 'settings' ? 'bg-[#0A996F] text-white' : 'text-gray-400 hover:bg-gray-50'}`}
+          className={`flex-1 flex flex-col items-center justify-center min-w-[60px] h-[60px] rounded-[18px] transition-all duration-300 ${activeTab === 'settings' ? 'bg-teal-50 shadow-sm' : 'hover:bg-gray-50'}`}
         >
-          <Globe size={20} className="mb-1" />
-          <span className="text-[8px] sm:text-[9px] uppercase tracking-widest font-bold">Settings</span>
+          <Globe size={22} className={`mb-1 transition-transform duration-300 ${activeTab === 'settings' ? 'scale-110 text-teal-500' : 'text-teal-400 opacity-60'}`} />
+          <span className={`text-[9px] uppercase tracking-widest font-bold transition-colors ${activeTab === 'settings' ? 'text-teal-600' : 'text-teal-500 opacity-60'}`}>Settings</span>
         </button>
       </nav>
 

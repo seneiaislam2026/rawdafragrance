@@ -24,11 +24,24 @@ export default function Checkout() {
     }
   };
 
+  const [formData, setFormData] = useState({
+    name: localStorage.getItem('rawda_customer_name') || '',
+    email: localStorage.getItem('rawda_customer_email') || '',
+    phone: localStorage.getItem('rawda_customer_phone') || '',
+    address: localStorage.getItem('rawda_customer_address') || '',
+    division: localStorage.getItem('rawda_customer_division') || '',
+    city: localStorage.getItem('rawda_customer_city') || '',
+    area: localStorage.getItem('rawda_customer_area') || '',
+    note: ''
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
   const handleCheckout = (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) return;
-    
-    const formData = new FormData(e.target as HTMLFormElement);
     
     // Process order
     const generatedOrderId = `ORD-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -38,11 +51,22 @@ export default function Checkout() {
       total: cartTotal - discount,
       status: 'Pending',
       items: cart.length,
-      customer: 'Seneia Islam', // For mock matching
-      address: (formData.get('address') as string) || 'Provided Address',
-      city: (formData.get('city') as string) || 'Dhaka',
+      customer: formData.name || 'Provided Name',
+      phone: formData.phone || '',
+      email: formData.email || '',
+      address: formData.address || 'Provided Address',
+      city: formData.city || 'Dhaka',
       itemsList: cart.map(c => ({ name: c.name, qty: c.quantity }))
     };
+    
+    // Save to local storage for future orders
+    localStorage.setItem('rawda_customer_name', formData.name);
+    localStorage.setItem('rawda_customer_email', formData.email);
+    localStorage.setItem('rawda_customer_phone', formData.phone);
+    localStorage.setItem('rawda_customer_address', formData.address);
+    localStorage.setItem('rawda_customer_division', formData.division);
+    localStorage.setItem('rawda_customer_city', formData.city);
+    localStorage.setItem('rawda_customer_area', formData.area);
     
     setOrders([newOrder, ...orders]);
     setPlacedOrderId(generatedOrderId);
@@ -132,17 +156,59 @@ export default function Checkout() {
               <div>
                 <h2 className="font-serif text-xl border-b border-brand-border pb-3 mb-6 text-brand-dark text-gold-500">1. Contact Information</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="space-y-1.5 relative group">
-                    <label className="text-[10px] uppercase tracking-widest text-brand-muted absolute left-4 top-2 transition-colors group-focus-within:text-gold-500">Full Name</label>
-                    <input type="text" required className="w-full bg-brand-white border border-brand-border px-4 pt-6 pb-2 text-sm rounded-lg focus:border-gold-500 focus:ring-1 focus:ring-gold-500 text-brand-dark outline-none transition-all focus:bg-white" />
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      id="name" 
+                      name="name" 
+                      value={formData.name} 
+                      onChange={handleChange} 
+                      required 
+                      placeholder="Full Name" 
+                      className="peer w-full bg-white border border-gray-200 px-4 pt-6 pb-2 text-sm rounded-xl focus:border-gold-500 focus:ring-2 focus:ring-gold-500/10 text-brand-dark outline-none transition-all placeholder-transparent hover:border-gray-300" 
+                    />
+                    <label 
+                      htmlFor="name" 
+                      className="absolute left-4 top-2 text-[10px] uppercase tracking-widest text-gray-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-brand-muted peer-placeholder-shown:top-4 peer-placeholder-shown:normal-case peer-placeholder-shown:tracking-normal peer-focus:text-[10px] peer-focus:top-2 peer-focus:uppercase peer-focus:tracking-widest peer-focus:text-gold-500 pointer-events-none"
+                    >
+                      Full Name
+                    </label>
                   </div>
-                  <div className="space-y-1.5 relative group">
-                    <label className="text-[10px] uppercase tracking-widest text-brand-muted absolute left-4 top-2 transition-colors group-focus-within:text-gold-500">Email Address</label>
-                    <input type="email" required className="w-full bg-brand-white border border-brand-border px-4 pt-6 pb-2 text-sm rounded-lg focus:border-gold-500 focus:ring-1 focus:ring-gold-500 text-brand-dark outline-none transition-all focus:bg-white" />
+                  <div className="relative">
+                    <input 
+                      type="email" 
+                      id="email" 
+                      name="email" 
+                      value={formData.email} 
+                      onChange={handleChange} 
+                      required 
+                      placeholder="Email Address" 
+                      className="peer w-full bg-white border border-gray-200 px-4 pt-6 pb-2 text-sm rounded-xl focus:border-gold-500 focus:ring-2 focus:ring-gold-500/10 text-brand-dark outline-none transition-all placeholder-transparent hover:border-gray-300" 
+                    />
+                    <label 
+                      htmlFor="email" 
+                      className="absolute left-4 top-2 text-[10px] uppercase tracking-widest text-gray-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-brand-muted peer-placeholder-shown:top-4 peer-placeholder-shown:normal-case peer-placeholder-shown:tracking-normal peer-focus:text-[10px] peer-focus:top-2 peer-focus:uppercase peer-focus:tracking-widest peer-focus:text-gold-500 pointer-events-none"
+                    >
+                      Email Address
+                    </label>
                   </div>
-                  <div className="space-y-1.5 md:col-span-2 relative group">
-                    <label className="text-[10px] uppercase tracking-widest text-brand-muted absolute left-4 top-2 transition-colors group-focus-within:text-gold-500">Phone Number</label>
-                    <input type="tel" required className="w-full bg-brand-white border border-brand-border px-4 pt-6 pb-2 text-sm rounded-lg focus:border-gold-500 focus:ring-1 focus:ring-gold-500 text-brand-dark outline-none transition-all focus:bg-white" />
+                  <div className="relative md:col-span-2">
+                    <input 
+                      type="tel" 
+                      id="phone" 
+                      name="phone" 
+                      value={formData.phone} 
+                      onChange={handleChange} 
+                      required 
+                      placeholder="Phone Number" 
+                      className="peer w-full bg-white border border-gray-200 px-4 pt-6 pb-2 text-sm rounded-xl focus:border-gold-500 focus:ring-2 focus:ring-gold-500/10 text-brand-dark outline-none transition-all placeholder-transparent hover:border-gray-300" 
+                    />
+                    <label 
+                      htmlFor="phone" 
+                      className="absolute left-4 top-2 text-[10px] uppercase tracking-widest text-gray-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-brand-muted peer-placeholder-shown:top-4 peer-placeholder-shown:normal-case peer-placeholder-shown:tracking-normal peer-focus:text-[10px] peer-focus:top-2 peer-focus:uppercase peer-focus:tracking-widest peer-focus:text-gold-500 pointer-events-none"
+                    >
+                      Phone Number
+                    </label>
                   </div>
                 </div>
               </div>
@@ -151,15 +217,35 @@ export default function Checkout() {
               <div>
                 <h2 className="font-serif text-xl border-b border-brand-border pb-3 mb-6 text-brand-dark text-gold-500 mt-8">2. Shipping Address</h2>
                 <div className="space-y-5">
-                  <div className="space-y-1.5 relative group">
-                    <label className="text-[10px] uppercase tracking-widest text-brand-muted absolute left-4 top-2 transition-colors group-focus-within:text-gold-500">Street Address / House / Flat</label>
-                    <input type="text" name="address" required className="w-full bg-brand-white border border-brand-border px-4 pt-6 pb-2 text-sm rounded-lg focus:border-gold-500 focus:ring-1 focus:ring-gold-500 text-brand-dark outline-none transition-all focus:bg-white" />
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      id="address" 
+                      name="address" 
+                      value={formData.address} 
+                      onChange={handleChange} 
+                      required 
+                      placeholder="Street Address / House / Flat" 
+                      className="peer w-full bg-white border border-gray-200 px-4 pt-6 pb-2 text-sm rounded-xl focus:border-gold-500 focus:ring-2 focus:ring-gold-500/10 text-brand-dark outline-none transition-all placeholder-transparent hover:border-gray-300" 
+                    />
+                    <label 
+                      htmlFor="address" 
+                      className="absolute left-4 top-2 text-[10px] uppercase tracking-widest text-gray-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-brand-muted peer-placeholder-shown:top-4 peer-placeholder-shown:normal-case peer-placeholder-shown:tracking-normal peer-focus:text-[10px] peer-focus:top-2 peer-focus:uppercase peer-focus:tracking-widest peer-focus:text-gold-500 pointer-events-none"
+                    >
+                      Street Address / House / Flat
+                    </label>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div className="space-y-1.5 relative group">
-                      <label className="text-[10px] uppercase tracking-widest text-brand-muted absolute left-4 top-2 transition-colors group-focus-within:text-gold-500 z-10 pointer-events-none">Division</label>
-                      <select name="division" required className="w-full bg-brand-white border border-brand-border px-4 pt-6 pb-2 text-sm rounded-lg focus:border-gold-500 focus:ring-1 focus:ring-gold-500 text-brand-dark outline-none transition-all focus:bg-white appearance-none">
-                        <option value=""></option>
+                    <div className="relative">
+                      <select 
+                        id="division" 
+                        name="division" 
+                        value={formData.division} 
+                        onChange={handleChange} 
+                        required 
+                        className="peer w-full bg-white border border-gray-200 px-4 pt-6 pb-2 text-sm rounded-xl focus:border-gold-500 focus:ring-2 focus:ring-gold-500/10 text-brand-dark outline-none transition-all appearance-none cursor-pointer hover:border-gray-300"
+                      >
+                        <option value="" disabled hidden></option>
                         <option value="Dhaka">Dhaka</option>
                         <option value="Chattogram">Chattogram</option>
                         <option value="Sylhet">Sylhet</option>
@@ -169,20 +255,65 @@ export default function Checkout() {
                         <option value="Rangpur">Rangpur</option>
                         <option value="Mymensingh">Mymensingh</option>
                       </select>
+                      <label htmlFor="division" className="absolute left-4 top-2 text-[10px] uppercase tracking-widest text-gray-400 pointer-events-none">Division</label>
+                      <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center pt-4 text-gray-400">
+                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                      </div>
                     </div>
-                    <div className="space-y-1.5 relative group">
-                      <label className="text-[10px] uppercase tracking-widest text-brand-muted absolute left-4 top-2 transition-colors group-focus-within:text-gold-500">City / District</label>
-                      <input type="text" name="city" required className="w-full bg-brand-white border border-brand-border px-4 pt-6 pb-2 text-sm rounded-lg focus:border-gold-500 focus:ring-1 focus:ring-gold-500 text-brand-dark outline-none transition-all focus:bg-white" />
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        id="city" 
+                        name="city" 
+                        value={formData.city} 
+                        onChange={handleChange} 
+                        required 
+                        placeholder="City / District" 
+                        className="peer w-full bg-white border border-gray-200 px-4 pt-6 pb-2 text-sm rounded-xl focus:border-gold-500 focus:ring-2 focus:ring-gold-500/10 text-brand-dark outline-none transition-all placeholder-transparent hover:border-gray-300" 
+                      />
+                      <label 
+                        htmlFor="city" 
+                        className="absolute left-4 top-2 text-[10px] uppercase tracking-widest text-gray-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-brand-muted peer-placeholder-shown:top-4 peer-placeholder-shown:normal-case peer-placeholder-shown:tracking-normal peer-focus:text-[10px] peer-focus:top-2 peer-focus:uppercase peer-focus:tracking-widest peer-focus:text-gold-500 pointer-events-none"
+                      >
+                        City / District
+                      </label>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div className="space-y-1.5 relative group">
-                      <label className="text-[10px] uppercase tracking-widest text-brand-muted absolute left-4 top-2 transition-colors group-focus-within:text-gold-500">Area / Thana</label>
-                      <input type="text" required className="w-full bg-brand-white border border-brand-border px-4 pt-6 pb-2 text-sm rounded-lg focus:border-gold-500 focus:ring-1 focus:ring-gold-500 text-brand-dark outline-none transition-all focus:bg-white" />
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        id="area" 
+                        name="area" 
+                        value={formData.area} 
+                        onChange={handleChange} 
+                        required 
+                        placeholder="Area / Thana" 
+                        className="peer w-full bg-white border border-gray-200 px-4 pt-6 pb-2 text-sm rounded-xl focus:border-gold-500 focus:ring-2 focus:ring-gold-500/10 text-brand-dark outline-none transition-all placeholder-transparent hover:border-gray-300" 
+                      />
+                      <label 
+                        htmlFor="area" 
+                        className="absolute left-4 top-2 text-[10px] uppercase tracking-widest text-gray-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-brand-muted peer-placeholder-shown:top-4 peer-placeholder-shown:normal-case peer-placeholder-shown:tracking-normal peer-focus:text-[10px] peer-focus:top-2 peer-focus:uppercase peer-focus:tracking-widest peer-focus:text-gold-500 pointer-events-none"
+                      >
+                        Area / Thana
+                      </label>
                     </div>
-                    <div className="space-y-1.5 relative group">
-                      <label className="text-[10px] uppercase tracking-widest text-brand-muted absolute left-4 top-2 transition-colors group-focus-within:text-gold-500">Order Note</label>
-                      <input type="text" placeholder="Optional notes" className="w-full bg-brand-white border border-brand-border px-4 pt-6 pb-2 text-sm rounded-lg focus:border-gold-500 focus:ring-1 focus:ring-gold-500 text-brand-dark outline-none transition-all focus:bg-white" />
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        id="note" 
+                        name="note" 
+                        value={formData.note} 
+                        onChange={handleChange} 
+                        placeholder="Optional notes" 
+                        className="peer w-full bg-white border border-gray-200 px-4 pt-6 pb-2 text-sm rounded-xl focus:border-gold-500 focus:ring-2 focus:ring-gold-500/10 text-brand-dark outline-none transition-all placeholder-transparent hover:border-gray-300" 
+                      />
+                      <label 
+                        htmlFor="note" 
+                        className="absolute left-4 top-2 text-[10px] uppercase tracking-widest text-gray-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-brand-muted peer-placeholder-shown:top-4 peer-placeholder-shown:normal-case peer-placeholder-shown:tracking-normal peer-focus:text-[10px] peer-focus:top-2 peer-focus:uppercase peer-focus:tracking-widest peer-focus:text-gold-500 pointer-events-none"
+                      >
+                        Order Note
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -201,55 +332,105 @@ export default function Checkout() {
                     <div 
                       key={method.id}
                       onClick={() => setPaymentMethod(method.id)}
-                      className={`cursor-pointer border ${paymentMethod === method.id ? 'border-gold-500 bg-gold-500/5' : 'border-brand-border bg-brand-white'} p-4 flex flex-col items-center justify-center gap-3 rounded-sm transition-colors`}
+                      className={`cursor-pointer border p-4 flex flex-col items-center justify-center gap-3 rounded-[16px] transition-all duration-300 ${paymentMethod === method.id ? 'border-gold-500 bg-gold-500/5 ring-1 ring-gold-500 shadow-sm scale-[1.02]' : 'border-gray-200 bg-white hover:border-gray-300 hover:scale-[1.01]'}`}
                     >
-                      <div className={`h-10 w-10 rounded-full flex items-center justify-center ${paymentMethod === method.id ? 'bg-gold-500 text-brand-white' : 'bg-brand-gray text-brand-muted'}`}>
+                      <div className={`h-11 w-11 rounded-full flex items-center justify-center transition-colors duration-300 ${paymentMethod === method.id ? 'bg-gold-500 text-brand-white' : 'bg-gray-100 text-brand-muted'}`}>
                         {method.icon}
                       </div>
-                      <span className="text-sm font-medium text-brand-dark">{method.name}</span>
+                      <span className="text-xs font-semibold tracking-wider text-brand-dark uppercase">{method.name}</span>
                     </div>
                   ))}
                 </div>
 
                 {paymentMethod === 'card' && (
-                  <div className="mt-6 space-y-5 bg-brand-white/50 p-6 border border-brand-border rounded-xl shadow-sm">
-                    <div className="space-y-1.5 relative group">
-                      <label className="text-[10px] uppercase tracking-widest text-brand-muted absolute left-4 top-2 transition-colors group-focus-within:text-gold-500">Card Number</label>
-                      <input type="text" placeholder="0000 0000 0000 0000" className="w-full bg-brand-white border border-brand-border px-4 pt-6 pb-2 text-sm rounded-lg focus:border-gold-500 focus:ring-1 focus:ring-gold-500 text-brand-dark font-mono outline-none transition-all placeholder:opacity-0 focus:placeholder:opacity-100" />
+                  <div className="mt-6 space-y-5 bg-white p-6 border border-gray-200 rounded-2xl shadow-sm">
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        id="cardNumber"
+                        placeholder="0000 0000 0000 0000" 
+                        className="peer w-full bg-white border border-gray-200 px-4 pt-6 pb-2 text-sm rounded-xl focus:border-gold-500 focus:ring-2 focus:ring-gold-500/10 text-brand-dark font-mono outline-none transition-all placeholder:opacity-0 focus:placeholder:opacity-100 hover:border-gray-300" 
+                      />
+                      <label 
+                        htmlFor="cardNumber" 
+                        className="absolute left-4 top-2 text-[10px] uppercase tracking-widest text-gray-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-brand-muted peer-placeholder-shown:top-4 peer-placeholder-shown:normal-case peer-placeholder-shown:tracking-normal peer-focus:text-[10px] peer-focus:top-2 peer-focus:uppercase peer-focus:tracking-widest peer-focus:text-gold-500 pointer-events-none"
+                      >
+                        Card Number
+                      </label>
                     </div>
                     <div className="grid grid-cols-2 gap-5">
-                      <div className="space-y-1.5 relative group">
-                        <label className="text-[10px] uppercase tracking-widest text-brand-muted absolute left-4 top-2 transition-colors group-focus-within:text-gold-500">Expiry (MM/YY)</label>
-                        <input type="text" placeholder="MM/YY" className="w-full bg-brand-white border border-brand-border px-4 pt-6 pb-2 text-sm rounded-lg focus:border-gold-500 focus:ring-1 focus:ring-gold-500 text-brand-dark outline-none transition-all placeholder:opacity-0 focus:placeholder:opacity-100" />
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          id="cardExpiry"
+                          placeholder="MM/YY" 
+                          className="peer w-full bg-white border border-gray-200 px-4 pt-6 pb-2 text-sm rounded-xl focus:border-gold-500 focus:ring-2 focus:ring-gold-500/10 text-brand-dark outline-none transition-all placeholder:opacity-0 focus:placeholder:opacity-100 hover:border-gray-300" 
+                        />
+                        <label 
+                          htmlFor="cardExpiry" 
+                          className="absolute left-4 top-2 text-[10px] uppercase tracking-widest text-gray-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-brand-muted peer-placeholder-shown:top-4 peer-placeholder-shown:normal-case peer-placeholder-shown:tracking-normal peer-focus:text-[10px] peer-focus:top-2 peer-focus:uppercase peer-focus:tracking-widest peer-focus:text-gold-500 pointer-events-none"
+                        >
+                          Expiry (MM/YY)
+                        </label>
                       </div>
-                      <div className="space-y-1.5 relative group">
-                        <label className="text-[10px] uppercase tracking-widest text-brand-muted absolute left-4 top-2 transition-colors group-focus-within:text-gold-500">CVC</label>
-                        <input type="text" placeholder="123" className="w-full bg-brand-white border border-brand-border px-4 pt-6 pb-2 text-sm rounded-lg focus:border-gold-500 focus:ring-1 focus:ring-gold-500 text-brand-dark outline-none transition-all placeholder:opacity-0 focus:placeholder:opacity-100" />
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          id="cardCvc"
+                          placeholder="123" 
+                          className="peer w-full bg-white border border-gray-200 px-4 pt-6 pb-2 text-sm rounded-xl focus:border-gold-500 focus:ring-2 focus:ring-gold-500/10 text-brand-dark outline-none transition-all placeholder:opacity-0 focus:placeholder:opacity-100 hover:border-gray-300" 
+                        />
+                        <label 
+                          htmlFor="cardCvc" 
+                          className="absolute left-4 top-2 text-[10px] uppercase tracking-widest text-gray-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-brand-muted peer-placeholder-shown:top-4 peer-placeholder-shown:normal-case peer-placeholder-shown:tracking-normal peer-focus:text-[10px] peer-focus:top-2 peer-focus:uppercase peer-focus:tracking-widest peer-focus:text-gold-500 pointer-events-none"
+                        >
+                          CVC
+                        </label>
                       </div>
                     </div>
                   </div>
                 )}
                 {(paymentMethod === 'bkash' || paymentMethod === 'nagad') && (
-                  <div className="mt-6 space-y-5 bg-brand-white/50 p-6 border border-brand-border rounded-xl shadow-sm">
-                    <p className="text-sm text-brand-muted mb-4">Please send ৳{total.toFixed(2)} to our {methodName(paymentMethod)} merchant number: <strong className="text-brand-dark">01712-345678</strong>.</p>
-                    <div className="space-y-1.5 relative group">
-                      <label className="text-[10px] uppercase tracking-widest text-brand-muted absolute left-4 top-2 transition-colors group-focus-within:text-gold-500">{methodName(paymentMethod)} Account Number</label>
-                      <input type="text" placeholder="e.g. 017..." className="w-full bg-brand-white border border-brand-border px-4 pt-6 pb-2 text-sm rounded-lg focus:border-gold-500 focus:ring-1 focus:ring-gold-500 text-brand-dark font-mono outline-none transition-all placeholder:opacity-0 focus:placeholder:opacity-100" />
+                  <div className="mt-6 space-y-5 bg-white p-6 border border-gray-200 rounded-2xl shadow-sm">
+                    <p className="text-sm text-brand-muted mb-4 leading-relaxed">Please send <strong className="text-brand-dark">৳{total.toFixed(2)}</strong> to our {methodName(paymentMethod)} merchant number: <strong className="text-gold-600 font-mono">01712-345678</strong>.</p>
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        id="paymentAccount"
+                        placeholder="e.g. 017..." 
+                        className="peer w-full bg-white border border-gray-200 px-4 pt-6 pb-2 text-sm rounded-xl focus:border-gold-500 focus:ring-2 focus:ring-gold-500/10 text-brand-dark font-mono outline-none transition-all placeholder:opacity-0 focus:placeholder:opacity-100 hover:border-gray-300" 
+                      />
+                      <label 
+                        htmlFor="paymentAccount" 
+                        className="absolute left-4 top-2 text-[10px] uppercase tracking-widest text-gray-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-brand-muted peer-placeholder-shown:top-4 peer-placeholder-shown:normal-case peer-placeholder-shown:tracking-normal peer-focus:text-[10px] peer-focus:top-2 peer-focus:uppercase peer-focus:tracking-widest peer-focus:text-gold-500 pointer-events-none"
+                      >
+                        {methodName(paymentMethod)} Account Number
+                      </label>
                     </div>
-                    <div className="space-y-1.5 relative group">
-                      <label className="text-[10px] uppercase tracking-widest text-brand-muted absolute left-4 top-2 transition-colors group-focus-within:text-gold-500">Transaction ID</label>
-                      <input type="text" placeholder="TRX..." className="w-full bg-brand-white border border-brand-border px-4 pt-6 pb-2 text-sm rounded-lg focus:border-gold-500 focus:ring-1 focus:ring-gold-500 text-brand-dark font-mono outline-none transition-all placeholder:opacity-0 focus:placeholder:opacity-100" />
+                    <div className="relative mt-4">
+                      <input 
+                        type="text" 
+                        id="paymentTrx"
+                        placeholder="TRX..." 
+                        className="peer w-full bg-white border border-gray-200 px-4 pt-6 pb-2 text-sm rounded-xl focus:border-gold-500 focus:ring-2 focus:ring-gold-500/10 text-brand-dark font-mono outline-none transition-all placeholder:opacity-0 focus:placeholder:opacity-100 hover:border-gray-300" 
+                      />
+                      <label 
+                        htmlFor="paymentTrx" 
+                        className="absolute left-4 top-2 text-[10px] uppercase tracking-widest text-gray-400 transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-brand-muted peer-placeholder-shown:top-4 peer-placeholder-shown:normal-case peer-placeholder-shown:tracking-normal peer-focus:text-[10px] peer-focus:top-2 peer-focus:uppercase peer-focus:tracking-widest peer-focus:text-gold-500 pointer-events-none"
+                      >
+                        Transaction ID
+                      </label>
                     </div>
                   </div>
                 )}
                 {paymentMethod === 'cod' && (
-                  <div className="mt-6 space-y-6 bg-brand-white/50 p-6 border border-brand-border rounded-sm flex items-start gap-4">
+                  <div className="mt-6 space-y-6 bg-white p-6 border border-gray-200 rounded-2xl flex items-start gap-4 shadow-sm animate-in fade-in duration-300">
                      <div className="bg-gold-500/10 p-3 rounded-full text-gold-500 shrink-0">
                        <ShieldCheck size={24} />
                      </div>
                      <div>
-                       <h3 className="text-brand-dark font-medium mb-1">Pay with Cash on Delivery</h3>
-                       <p className="text-sm text-brand-muted">You can pay in cash to our courier when you receive the goods at your doorstep.</p>
+                       <h3 className="text-brand-dark font-serif text-base mb-1">Pay with Cash on Delivery</h3>
+                       <p className="text-sm text-brand-muted leading-relaxed">You can pay in cash to our courier when you receive the goods at your doorstep.</p>
                      </div>
                   </div>
                 )}

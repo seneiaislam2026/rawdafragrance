@@ -73,7 +73,7 @@ export default function UserDashboard() {
                 navigate('/admin');
               } else {
                 loginUser();
-                const from = location.state?.from?.pathname || '/user-dashboard';
+                const from = location.state?.from?.pathname || '/shop';
                 navigate(from, { replace: true });
               }
             }}>
@@ -110,7 +110,7 @@ export default function UserDashboard() {
               type="button" 
               onClick={() => {
                 loginUser();
-                const from = location.state?.from?.pathname || '/user-dashboard';
+                const from = location.state?.from?.pathname || '/shop';
                 navigate(from, { replace: true });
               }}
               className="w-full py-3.5 mt-8 bg-white border border-brand-border/80 text-brand-dark font-medium text-sm hover:bg-brand-gray/30 transition-all flex items-center justify-center gap-3 rounded-xl shadow-sm hover:shadow-md"
@@ -141,29 +141,25 @@ export default function UserDashboard() {
 
   return (
     <div className="bg-brand-light min-h-[calc(100vh-6rem)] pb-16 animate-in fade-in duration-500">
-      {/* Premium Dashboard Banner */}
-      <div className="relative h-[20vh] min-h-[180px] bg-brand-dark mb-16 shadow-md">
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1628148967926-d3c7ab0840c8?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-center opacity-30 mix-blend-luminosity"></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-light via-brand-dark/30 to-brand-dark/80"></div>
-        <div className="absolute bottom-0 left-0 right-0 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 translate-y-1/2 flex items-end md:items-center gap-6">
-          <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-brand-light bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center text-brand-white text-4xl md:text-5xl font-serif shadow-xl flex-shrink-0 relative overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 md:pt-12">
+        {/* Simple Profile Header */}
+        <div className="flex items-center gap-6 mb-8">
+          <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center text-brand-white text-3xl md:text-4xl font-serif shadow-md flex-shrink-0 relative overflow-hidden">
              <span className="relative z-10 drop-shadow-md">SI</span>
              <div className="absolute inset-0 bg-white/20"></div>
           </div>
-          <div className="pb-4 md:pb-0 z-10 pt-16 md:pt-0">
-            <h1 className="font-serif text-3xl md:text-4xl text-brand-dark mb-1 drop-shadow-sm font-bold">Seneia Islam</h1>
+          <div>
+            <h1 className="font-serif text-3xl md:text-4xl text-brand-dark mb-2 font-bold">Seneia Islam</h1>
             <div className="flex items-center gap-2 text-sm">
-              <span className="bg-gold-500/10 text-gold-600 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-widest border border-gold-500/20">
+              <span className="bg-gold-500/10 text-gold-600 px-3 py-1 rounded-full text-[10px] md:text-xs font-semibold uppercase tracking-widest border border-gold-500/20">
                 Premium Member
               </span>
-              <span className="text-gray-500 hidden sm:inline-block">• Joined 2026</span>
+              <span className="text-gray-500 hidden sm:inline-block text-xs">• Joined 2026</span>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
+        <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 pt-2">
           
           {/* Enhanced Sidebar */}
           <aside className="lg:w-64 flex-shrink-0">

@@ -22,27 +22,36 @@ function ScrollToTop() {
   return null;
 }
 
+function AppContent() {
+  const { pathname } = useLocation();
+  const isAdminRoute = pathname.startsWith('/admin');
+
+  return (
+    <div className="flex flex-col min-h-screen bg-brand-light text-brand-dark pt-0 relative">
+      <Navbar />
+      <main className="flex-grow">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/shop" element={<Shop />} />
+          <Route path="/product/:id" element={<ProductDetails />} />
+          <Route path="/checkout" element={<Checkout />} />
+          <Route path="/user-dashboard" element={<UserDashboard />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/track" element={<TrackOrder />} />
+        </Routes>
+      </main>
+      {!isAdminRoute && <Footer />}
+      {!isAdminRoute && <WhatsAppWidget />}
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <AppProvider>
       <Router>
         <ScrollToTop />
-        <div className="flex flex-col min-h-screen bg-brand-light text-brand-dark pt-0 relative">
-          <Navbar />
-          <main className="flex-grow">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/shop" element={<Shop />} />
-              <Route path="/product/:id" element={<ProductDetails />} />
-              <Route path="/checkout" element={<Checkout />} />
-              <Route path="/user-dashboard" element={<UserDashboard />} />
-              <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="/track" element={<TrackOrder />} />
-            </Routes>
-          </main>
-          <Footer />
-          <WhatsAppWidget />
-        </div>
+        <AppContent />
       </Router>
     </AppProvider>
   );

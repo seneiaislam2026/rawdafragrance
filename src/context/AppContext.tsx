@@ -164,6 +164,7 @@ export interface StoreSettings {
   couponCode: string;
   couponDiscountPercentage: number;
   whatsappNumber: string;
+  emailAddress: string;
 }
 
 interface ToastMessage {
@@ -213,7 +214,8 @@ const DEFAULT_SETTINGS: StoreSettings = {
   ],
   couponCode: 'LUXURY20',
   couponDiscountPercentage: 20,
-  whatsappNumber: '+8801950959931'
+  whatsappNumber: '+8801950959931',
+  emailAddress: 'rawdafragrance@gmail.com'
 };
 
 export function AppProvider({ children }: { children: ReactNode }) {

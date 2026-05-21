@@ -38,13 +38,20 @@ export default function Navbar() {
   return (
     <>
       {/* Top Bar */}
-      <div className="bg-[#1C2434] text-white py-2.5 px-4 shadow-sm z-40 relative">
+      <div 
+        className="bg-[#1C2434] text-white px-4 shadow-sm z-40 relative"
+        style={{ paddingTop: 'max(16px, env(safe-area-inset-top, 16px))', paddingBottom: '12px' }}
+      >
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-6 text-[11px] sm:text-xs">
             <button 
               onClick={() => {
                 if (location.pathname !== '/') {
-                  navigate(-1);
+                  if (window.history.state && window.history.state.idx > 0) {
+                    navigate(-1);
+                  } else {
+                    navigate('/');
+                  }
                 }
               }} 
               className="flex items-center hover:text-gold-500 cursor-pointer transition-colors uppercase tracking-widest font-medium"
@@ -128,7 +135,7 @@ export default function Navbar() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3, ease: [0.33, 1, 0.68, 1] }}
-                className="absolute top-full left-0 right-0 bg-white shadow-2xl border-b border-brand-border z-40 overflow-hidden"
+                className="absolute top-full left-0 right-0 bg-white shadow-2xl border-b border-brand-border z-40 max-h-[85vh] overflow-y-auto custom-scrollbar"
               >
                 <div className="max-w-4xl mx-auto p-6 sm:p-8">
                   {/* Search Input */}
@@ -229,7 +236,7 @@ export default function Navbar() {
 
         {/* Mobile Sidebar Overlay */}
         {isMobileMenuOpen && (
-          <div className="fixed inset-0 z-50 flex">
+          <div className="fixed inset-0 z-[100] flex">
             {/* Backdrop */}
             <div 
               className="fixed inset-0 bg-black/60 transition-opacity" 
@@ -239,7 +246,7 @@ export default function Navbar() {
             {/* Close Button outside drawer */}
             <button 
               onClick={() => setIsMobileMenuOpen(false)}
-              className="absolute top-4 z-[60] text-white p-2 hover:opacity-80 animate-in fade-in duration-300"
+              className="absolute top-4 z-[110] text-white p-2 hover:opacity-80 animate-in fade-in duration-300"
               style={{ left: 'min(calc(85% + 10px), 330px)' }}
             >
               <X size={32} strokeWidth={1.5} />
@@ -250,7 +257,7 @@ export default function Navbar() {
 
               {/* Top Signin Card */}
               <div 
-                className="bg-[#111111] rounded-[16px] p-4 flex items-center gap-4 text-white hover:bg-black cursor-pointer transition-colors mb-8 mt-2 overflow-hidden shadow-md border border-white/10" 
+                className="bg-[#111111] rounded-[16px] py-5 px-4 flex items-center gap-4 text-white hover:bg-black cursor-pointer transition-colors mb-8 mt-2 shadow-md border border-white/10" 
                 onClick={() => { setIsMobileMenuOpen(false); navigate('/user-dashboard'); }}
               >
                 {isUserLoggedIn ? (
@@ -258,9 +265,9 @@ export default function Navbar() {
                     <div className="bg-gold-500 w-12 h-12 flex items-center justify-center rounded-full flex-shrink-0 text-brand-dark font-serif text-xl">
                       SI
                     </div>
-                    <div className="text-left overflow-hidden">
-                      <div className="font-serif text-[17px] leading-tight truncate">Hello there!</div>
-                      <div className="text-gold-500 font-medium text-[13px] truncate">Seneia Islam</div>
+                    <div className="text-left flex-1 min-w-0">
+                      <div className="font-serif text-[18px] leading-normal truncate py-0.5">Seneia Islam</div>
+                      <div className="text-gold-500 font-medium text-[13px] truncate">View Dashboard</div>
                     </div>
                   </>
                 ) : (
@@ -268,8 +275,8 @@ export default function Navbar() {
                     <div className="bg-white/10 w-12 h-12 flex items-center justify-center rounded-full flex-shrink-0">
                       <User size={24} className="text-white" strokeWidth={1.5} />
                     </div>
-                    <div className="text-left overflow-hidden">
-                      <div className="font-serif text-[17px] leading-tight truncate">Hello there!</div>
+                    <div className="text-left flex-1 min-w-0">
+                      <div className="font-serif text-[18px] leading-normal truncate py-0.5">Hello there!</div>
                       <div className="text-white/70 text-[13px] tracking-wide mt-0.5 truncate border-b border-white/30 inline-block pb-0.5">Sign in / Register</div>
                     </div>
                   </>
